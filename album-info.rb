@@ -10,7 +10,7 @@ require "id3lib"
 require "ya2yaml"
 require "zipruby"
 
-$Editor = "gedit"
+$editor = "gedit"
 $Album_info_file = "info.yaml"
 $Jamendo_readme = "Readme - www.jamendo.com .txt"
 
@@ -173,7 +173,7 @@ def get_release_url(arc)
 
   $stderr.puts entry
 
-  temp_path = "000#{ext}"
+  temp_path = File.join(Dir.tmpdir, "__#{File.basename(__FILE__)}_temp#{ext}")
   open(temp_path, "wb") do |f|
     f.write arc.entry_read(entry)
   end
@@ -193,7 +193,8 @@ def get_release_url(arc)
         ;
       end
     end
-  end    
+  end
+  FileUtils.rm(temp_path)
   
   result
 end
@@ -263,7 +264,7 @@ class AlbumInfo
         f.puts "\n...", invalid_text
       end
     end
-    exec_cmd( %Q! #{$Editor} "#{temp_infopath}" ! )
+    exec_cmd( %Q! #{$editor} "#{temp_infopath}" ! )
     FileUtils.cp(temp_infopath, "000.yaml") if $DEBUG
 
     new_arcfile = "#{arcfile}_with_info.zip"
