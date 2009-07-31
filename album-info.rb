@@ -211,6 +211,7 @@ class AlbumInfo
   def album_info_template
     info_exist = nil
     info_valid = nil
+    invalid_text = nil
 
     if @arc.entry_exist? $Album_info_file
       info_exist = true
@@ -220,6 +221,7 @@ class AlbumInfo
         info_valid = true
       rescue
         info_valid = false
+        invalid_text = @arc.entry_read($Album_info_file)
       end
     else
       info_exist = false
@@ -245,7 +247,7 @@ class AlbumInfo
       end
     end
 
-    result
+    return result, invalid_text
   end
 
 
@@ -254,7 +256,13 @@ class AlbumInfo
     Dir.chdir File.dirname(@arc_path)
 
     temp_infopath = File.join(Dir.tmpdir, $Album_info_file)
-    open(temp_infopath, "w") {|f| f.puts album_info_template.to_yaml }
+    open(temp_infopath, "w") do |f|
+      template, invalid_text = album_info_template()
+      f.puts template.to_yaml 
+      if invalid_text
+        f.puts "\n...", invalid_text
+      end
+    end
     exec_cmd( %Q! #{$Editor} "#{temp_infopath}" ! )
     FileUtils.cp(temp_infopath, "000.yaml") if $DEBUG
 
