@@ -253,8 +253,7 @@ class AlbumInfo
 
 
   def new_or_modify(overwrite = nil)
-    arcfile = File.basename(@arc_path)
-    Dir.chdir File.dirname(@arc_path)
+    arc_basename = File.basename(@arc_path)
 
     temp_infopath = File.join(Dir.tmpdir, $Album_info_file)
     open(temp_infopath, "w") do |f|
@@ -267,11 +266,12 @@ class AlbumInfo
     exec_cmd( %Q! #{$editor} "#{temp_infopath}" ! )
     FileUtils.cp(temp_infopath, "000.yaml") if $DEBUG
 
-    new_arcfile = "#{arcfile}_with_info.zip"
-    FileUtils.cp(arcfile, new_arcfile)
+    new_arc_basename = "#{arc_basename}_with_info.zip"
+    # コピー オリジナル → 新
+    FileUtils.cp(@arc_path, new_arc_basename)
     sleep 1
     
-    new_arc = ArchiveFile.new(new_arcfile)
+    new_arc = ArchiveFile.new(new_arc_basename)
     
     if new_arc.entry_exist?($Album_info_file)
       new_arc.entry_rm($Album_info_file)
@@ -279,8 +279,8 @@ class AlbumInfo
     new_arc.entry_add(temp_infopath)
 
     if overwrite
-      #FileUtils.rm(arcfile)
-      FileUtils.mv(new_arcfile, arcfile)
+      #FileUtils.rm(arc_basename)
+      FileUtils.mv(new_arc_basename, arc_basename)
     end
   end
 
