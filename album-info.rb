@@ -252,7 +252,7 @@ class AlbumInfo
   end
 
 
-  def new_or_modify
+  def new_or_modify(overwrite = nil)
     arcfile = File.basename(@arc_path)
     Dir.chdir File.dirname(@arc_path)
 
@@ -270,13 +270,18 @@ class AlbumInfo
     new_arcfile = "#{arcfile}_with_info.zip"
     FileUtils.cp(arcfile, new_arcfile)
     sleep 1
-
+    
     new_arc = ArchiveFile.new(new_arcfile)
-
+    
     if new_arc.entry_exist?($Album_info_file)
       new_arc.entry_rm($Album_info_file)
     end
     new_arc.entry_add(temp_infopath)
+
+    if overwrite
+      #FileUtils.rm(arcfile)
+      FileUtils.mv(new_arcfile, arcfile)
+    end
   end
 
 
@@ -308,6 +313,7 @@ if $0 == __FILE__
     o.banner = "ruby #$0 [options] [args]"
     o.on("-p", "--print", "print info.yaml") {|x| opts[:print] = x }
     o.on("-r", "--remove", "remove info.yaml") {|x| opts[:remove] = x }
+    o.on("-w", "--overwrite", "overwrite original archive file") {|x| opts[:overwrite] = x }
     o.parse!
   }
 
@@ -323,6 +329,8 @@ if $0 == __FILE__
     puts ai.content
   elsif opts[:remove]
     ai.rm
+  elsif opts[:overwrite]
+    ai.new_or_modify(:overwrite)
   else
     ai.new_or_modify
   end
