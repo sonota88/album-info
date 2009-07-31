@@ -239,9 +239,9 @@ class AlbumInfo
 
       if @arc.entry_exist?($Jamendo_readme)
         existing = get_release_url(@arc)
-        result["release_url"] << existing[:release_url]
-        result["licenses"] << {'url'=>existing[:license_url]}
-        result["album_title"] =  existing[:album_title]
+        result["licenses"] = [{'url'=>existing[:license_url], 
+                                'verify_at'=>existing[:release_url]}]
+        result["album"]["title"] =  existing[:album_title]
       else
         print "no info.\n"
       end
