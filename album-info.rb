@@ -262,23 +262,17 @@ class AlbumInfo
         f.puts "（文字コード判別用テキスト）"
       end
     end
+
     exec_cmd( %Q! #{$editor} "#{temp_infopath}" ! )
 
     temp_str = File.read(temp_infopath)
-    open(temp_infopath, "w") {|f|
-      f.print case $editor
-              when /notepad\.exe/i
-                temp_str.tosjis
-              else
-                temp_str.toutf8
-              end
-    }
+    open(temp_infopath, "w") {|f| f.print temp_str.toutf8 }
 
     FileUtils.cp(temp_infopath, "000.yaml") if $DEBUG
 
     new_arc_basename = "#{arc_basename}_with_info.zip"
     FileUtils.cp(@arc_path, new_arc_basename)
-    sleep 1
+    #sleep 1
     
     new_arc = ArchiveFile.new(new_arc_basename)
     
