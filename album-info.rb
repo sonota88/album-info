@@ -10,7 +10,7 @@ require "id3lib"
 require "ya2yaml"
 require "zipruby"
 
-$editor = "gedit"
+$editor = nil
 $Album_info_file = "info.yaml"
 $Jamendo_readme = "Readme - www.jamendo.com .txt"
 
@@ -26,7 +26,23 @@ licenses:
 album: 
   title: 
   id: 
+description:
+tags: []
+donation_info_url: 
+...
+ここから下はコメント
+文字コード判別用テキスト
 EOB
+
+
+def set_editor
+  $editor = case PLATFORM
+  when /mswin32/
+    "notepad.exe"
+  else
+    "gedit"
+  end
+end
 
 
 class ArchiveFile
@@ -258,16 +274,19 @@ class AlbumInfo
     temp_infopath = File.join(Dir.tmpdir, $Album_info_file)
     open(temp_infopath, "w") do |f|
       template, invalid_text = album_info_template()
-      f.puts template.to_yaml 
+      f.puts template.ya2yaml
       if invalid_text
         f.puts "\n...", invalid_text
       end
     end
     exec_cmd( %Q! #{$editor} "#{temp_infopath}" ! )
+
+    temp_str = File.read(temp_infopath)
+    open(temp_infopath, "w") {|f| f.print temp_str.toutf8 }
+
     FileUtils.cp(temp_infopath, "000.yaml") if $DEBUG
 
     new_arc_basename = "#{arc_basename}_with_info.zip"
-    # コピー オリジナル → 新
     FileUtils.cp(@arc_path, new_arc_basename)
     sleep 1
     
@@ -324,9 +343,16 @@ if $0 == __FILE__
   end
   arc_path = ARGV[0]
 
+  set_editor()
+
   ai = AlbumInfo.new(arc_path)
   if opts[:print]
-    puts ai.content
+    puts case PLATFORM
+         when /mswin32/
+           ai.content.tosjis
+         else
+           ai.content
+         end
   elsif opts[:remove]
     ai.rm
   elsif opts[:overwrite]
