@@ -29,9 +29,6 @@ album:
 description:
 tags: []
 donation_info_url: 
-...
-ここから下はコメント
-文字コード判別用テキスト
 EOB
 
 
@@ -152,24 +149,7 @@ def exec_cmd(str)
 end
 
 
-def get_release_url_old(path)
-  result = nil
-
-  case File.extname(path)
-  when /\.mp3$/i
-    tag = ID3Lib::Tag.new(path)
-    tag.each do |frame|
-      if frame[:id] == :WOAS
-        result = frame[:url]
-      end
-    end
-  end    
-  
-  result
-end
-
-
-def get_release_url(arc)
+def get_album_metadata(arc)
   result = {}
 
   entry = nil
@@ -196,7 +176,7 @@ def get_release_url(arc)
 
   case ext
   when /\.mp3$/i
-    tag = ID3Lib::Tag.new(temp_path)
+    tag = ID3Lib::Tag.new(temp_path, ID3Lib::V2)
     tag.each do |frame|
       case frame[:id]
       when :WOAS
@@ -255,7 +235,7 @@ class AlbumInfo
       result = YAML.load($AI_template)
 
       if @arc.entry_exist?($Jamendo_readme)
-        existing = get_release_url(@arc)
+        existing = get_album_metadata(@arc)
         result["licenses"] = [{'url'=>existing[:license_url], 
                                 'verify_at'=>existing[:release_url]}]
         result["album"]["title"] =  existing[:album_title]
@@ -275,14 +255,24 @@ class AlbumInfo
     open(temp_infopath, "w") do |f|
       template, invalid_text = album_info_template()
       f.puts template.ya2yaml
+      f.puts "\n..."
       if invalid_text
-        f.puts "\n...", invalid_text
+        f.puts invalid_text
+      else
+        f.puts "（文字コード判別用テキスト）"
       end
     end
     exec_cmd( %Q! #{$editor} "#{temp_infopath}" ! )
 
     temp_str = File.read(temp_infopath)
-    open(temp_infopath, "w") {|f| f.print temp_str.toutf8 }
+    open(temp_infopath, "w") {|f|
+      f.print case $editor
+              when /notepad\.exe/i
+                temp_str.tosjis
+              else
+                temp_str.toutf8
+              end
+    }
 
     FileUtils.cp(temp_infopath, "000.yaml") if $DEBUG
 
