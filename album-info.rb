@@ -10,40 +10,8 @@ require "id3lib"
 require "ya2yaml"
 require "zipruby"
 
-$editor = nil
-$Album_info_file = "info.yaml"
-$Jamendo_readme = "Readme - www.jamendo.com .txt"
-
-$AI_template =<<EOB
---- 
-artists: 
-- name: 
-release_url: []
-pub_date: 
-licenses: 
-- verify_at: 
-  url: 
-album: 
-  title: 
-  id: 
-description:
-tags: []
-donation_info_url: 
-EOB
-
-
-def set_editor
-  $editor = case PLATFORM
-  when /mswin32/
-    "notepad.exe"
-  else
-    "gedit"
-  end
-end
-
 
 class ArchiveFile
-
   def initialize(arc_path)
     @arc_path = arc_path
 
@@ -77,9 +45,9 @@ class ArchiveFile
   end
 
 
-  def entry_add(path)
+  def entry_add(path, entry)
     Zip::Archive.open(@arc_path) do |ar|
-      ar.add_file path
+      ar.add_file(entry, path)
     end
   end
 
@@ -138,70 +106,95 @@ class ArchiveFile
 end
 
 
-def kconv_u16tou8(str)
-  Kconv.kconv( str, Kconv::UTF8, Kconv::UTF16)
-end
-
-
-def exec_cmd(str)
-  $stderr.puts str
-  system str
-end
-
-
-def get_album_metadata(arc)
-  result = {}
-
-  entry = nil
-  ext = nil
-
-  arc.entry_list.each do |e|
-    ext = File.extname(e)
-    if /\.mp3$/ =~ ext
-      entry = e
-      break
-    end
-  end
-
-  if entry == nil
-    raise "could not find mp3."
-  end
-
-  $stderr.puts entry
-
-  temp_path = File.join(Dir.tmpdir, "__#{File.basename(__FILE__)}_temp#{ext}")
-  open(temp_path, "wb") do |f|
-    f.write arc.entry_read(entry)
-  end
-
-  case ext
-  when /\.mp3$/i
-    tag = ID3Lib::Tag.new(temp_path, ID3Lib::V2)
-    tag.each do |frame|
-      case frame[:id]
-      when :WOAS
-        result[:release_url] = frame[:url]
-      when :WCOP
-        result[:license_url] = frame[:url]
-      when :TALB
-        result[:album_title] = kconv_u16tou8(frame[:text])
-      else
-        ;
-      end
-    end
-  end
-  FileUtils.rm(temp_path)
-  
-  result
-end
-
-
-
-
 class AlbumInfo
+  ALBUM_INFO_FILE = "info.yaml"
+  JAMENDO_README = "Readme - www.jamendo.com .txt"
+  AI_TEMPLATE =<<-EOB
+--- 
+artists: 
+- name: 
+release_url: []
+pub_date: 
+licenses: 
+- verify_at: 
+  url: 
+album: 
+  title: 
+  id: 
+description:
+tags: []
+donation_info_url: 
+  EOB
+
+
   def initialize(arc_path)
     @arc_path = arc_path
     @arc = ArchiveFile.new(arc_path)
+
+    @editor = case PLATFORM
+              when /mswin32/
+                "notepad.exe"
+              else
+                "gedit"
+              end
+  end
+
+  
+  def kconv_u16tou8(str)
+    Kconv.kconv( str, Kconv::UTF8, Kconv::UTF16)
+  end
+
+
+  def exec_cmd(str)
+    $stderr.puts str
+    system str
+  end
+
+
+  def get_album_metadata
+    result = {}
+
+    entry = nil
+    ext = nil
+
+    @arc.entry_list.each do |e|
+      ext = File.extname(e)
+      if /\.mp3$/ =~ ext
+        entry = e
+        break
+      end
+    end
+
+    if entry == nil
+      raise "could not find mp3."
+    end
+
+    $stderr.puts entry
+
+    temp_path = File.join(Dir.tmpdir, "__#{File.basename(__FILE__)}_temp#{ext}")
+    open(temp_path, "wb") do |f|
+      f.write @arc.entry_read(entry)
+    end
+
+    case ext
+    when /\.mp3$/i
+      tag = ID3Lib::Tag.new(temp_path, ID3Lib::V2)
+      tag.each do |frame|
+        case frame[:id]
+        when :WOAS
+          result[:release_url] = frame[:url]
+        when :WCOP
+          result[:license_url] = frame[:url]
+        when :TALB
+          result[:album_title] = kconv_u16tou8(frame[:text])
+        else
+          ;
+        end
+      end
+    end
+    FileUtils.rm(temp_path)
+    
+    result
   end
 
 
@@ -210,15 +203,15 @@ class AlbumInfo
     info_valid = nil
     invalid_text = nil
 
-    if @arc.entry_exist? $Album_info_file
+    if @arc.entry_exist? ALBUM_INFO_FILE
       info_exist = true
       # check validness
       begin
-        YAML.load( @arc.entry_read($Album_info_file) )
+        YAML.load( @arc.entry_read(ALBUM_INFO_FILE) )
         info_valid = true
       rescue
         info_valid = false
-        invalid_text = @arc.entry_read($Album_info_file)
+        invalid_text = @arc.entry_read(ALBUM_INFO_FILE)
       end
     else
       info_exist = false
@@ -230,12 +223,12 @@ class AlbumInfo
     result = {}
 
     if info_valid
-      result = YAML.load( @arc.entry_read($Album_info_file) )
+      result = YAML.load( @arc.entry_read(ALBUM_INFO_FILE) )
     else
-      result = YAML.load($AI_template)
+      result = YAML.load(AI_TEMPLATE)
 
-      if @arc.entry_exist?($Jamendo_readme)
-        existing = get_album_metadata(@arc)
+      if @arc.entry_exist?(JAMENDO_README)
+        existing = get_album_metadata()
         result["licenses"] = [{'url'=>existing[:license_url], 
                                 'verify_at'=>existing[:release_url]}]
         result["album"]["title"] =  existing[:album_title]
@@ -251,7 +244,8 @@ class AlbumInfo
   def new_or_modify(overwrite = nil)
     arc_basename = File.basename(@arc_path)
 
-    temp_infopath = File.join(Dir.tmpdir, $Album_info_file)
+    temp_infopath = File.join(Dir.tmpdir, AlbumInfo::ALBUM_INFO_FILE)
+
     open(temp_infopath, "w") do |f|
       template, invalid_text = album_info_template()
       f.puts template.ya2yaml
@@ -263,8 +257,8 @@ class AlbumInfo
       end
     end
 
-    exec_cmd( %Q! #{$editor} "#{temp_infopath}" ! )
-
+    exec_cmd( %Q! #{@editor} "#{temp_infopath}" ! )
+    
     temp_str = File.read(temp_infopath)
     open(temp_infopath, "w") {|f| f.print temp_str.toutf8 }
 
@@ -276,10 +270,10 @@ class AlbumInfo
     
     new_arc = ArchiveFile.new(new_arc_basename)
     
-    if new_arc.entry_exist?($Album_info_file)
-      new_arc.entry_rm($Album_info_file)
+    if new_arc.entry_exist?(ALBUM_INFO_FILE)
+      new_arc.entry_rm(ALBUM_INFO_FILE)
     end
-    new_arc.entry_add(temp_infopath)
+    new_arc.entry_add(temp_infopath, ALBUM_INFO_FILE)
 
     if overwrite
       #FileUtils.rm(arc_basename)
@@ -289,24 +283,32 @@ class AlbumInfo
 
 
   def content
-    if @arc.entry_exist?($Album_info_file)
-      @arc.entry_read($Album_info_file)
+    if @arc.entry_exist?(ALBUM_INFO_FILE)
+      @arc.entry_read(ALBUM_INFO_FILE)
     else
-      "could not find #{$Album_info_file}"
+      "could not find #{ALBUM_INFO_FILE}"
     end
   end
 
   
   def rm
-    if @arc.entry_exist?($Album_info_file)
-      @arc.entry_rm($Album_info_file)
+    if @arc.entry_exist?(ALBUM_INFO_FILE)
+      @arc.entry_rm(ALBUM_INFO_FILE)
     else
-      "could not find #{$Album_info_file}"
+      "could not find #{ALBUM_INFO_FILE}"
+    end
+  end
+
+
+  def self.edit_albuminfo(arc_path, overwrite = nil)
+    ai = AlbumInfo.new(arc_path)
+    if overwrite
+      ai.new_or_modify(:overwrite)
+    else
+      ai.new_or_modify(nil)
     end
   end
 end
-
-
 
 
 ################################################################
@@ -326,8 +328,6 @@ if $0 == __FILE__
     exit 1
   end
   arc_path = ARGV[0]
-
-  set_editor()
 
   ai = AlbumInfo.new(arc_path)
   if opts[:print]
