@@ -109,6 +109,7 @@ end
 class AlbumInfo
   ALBUM_INFO_FILE = "info.yaml"
   JAMENDO_README = "Readme - www.jamendo.com .txt"
+  NEW_ARC_SUFFIX = "_with_info.zip"
   AI_TEMPLATE =<<-EOB
 --- 
 artists: 
@@ -266,7 +267,7 @@ donation_info_url:
     
     postedit_str = File.read(temp_infopath).toutf8
     if preedit_str == postedit_str
-      $stderr.puts "nothing changed."
+      $stderr.puts "Nothing changed."
       return
     end
 
@@ -274,7 +275,7 @@ donation_info_url:
 
     FileUtils.cp(temp_infopath, "000.yaml") if $DEBUG
 
-    new_arc_basename = "#{arc_basename}_with_info.zip"
+    new_arc_basename = "#{arc_basename}#{NEW_ARC_SUFFIX}"
     FileUtils.cp(@arc_path, new_arc_basename)
     #sleep 1
     
@@ -296,7 +297,7 @@ donation_info_url:
     if @arc.entry_exist?(ALBUM_INFO_FILE)
       @arc.entry_read(ALBUM_INFO_FILE)
     else
-      "could not find #{ALBUM_INFO_FILE}"
+      "Could not find #{ALBUM_INFO_FILE}"
     end
   end
 
@@ -305,7 +306,7 @@ donation_info_url:
     if @arc.entry_exist?(ALBUM_INFO_FILE)
       @arc.entry_rm(ALBUM_INFO_FILE)
     else
-      "could not find #{ALBUM_INFO_FILE}"
+      "Could not find #{ALBUM_INFO_FILE}"
     end
   end
 
@@ -317,6 +318,11 @@ donation_info_url:
     else
       ai.new_or_modify(nil)
     end
+  end
+
+  
+  def new_arc_fullpath
+    File.expand_path(@arc_path) + NEW_ARC_SUFFIX
   end
 end
 
@@ -352,6 +358,10 @@ if $0 == __FILE__
   elsif opts[:overwrite]
     ai.new_or_modify(:overwrite)
   else
+    if File.exist? ai.new_arc_fullpath
+      $stderr.puts "New file already exists: #{ai.new_arc_fullpath}"
+      exit
+    end
     ai.new_or_modify
   end
 end
