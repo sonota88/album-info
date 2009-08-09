@@ -241,26 +241,36 @@ donation_info_url:
   end
 
 
+  def get_preedit_str
+    template, invalid_text = album_info_template()
+    preedit_str = ""
+    preedit_str << template.ya2yaml
+    preedit_str << "\n..."
+    if invalid_text
+      preedit_str << invalid_text
+    else
+      preedit_str << "（文字エンコーディング判別用テキスト / Text for determining encoding）"
+    end
+    preedit_str << "\n"
+  end
+
+
   def new_or_modify(overwrite = nil)
     arc_basename = File.basename(@arc_path)
-
     temp_infopath = File.join(Dir.tmpdir, AlbumInfo::ALBUM_INFO_FILE)
 
-    open(temp_infopath, "w") do |f|
-      template, invalid_text = album_info_template()
-      f.puts template.ya2yaml
-      f.puts "\n..."
-      if invalid_text
-        f.puts invalid_text
-      else
-        f.puts "（文字コード判別用テキスト）"
-      end
-    end
+    preedit_str = get_preedit_str()
+    open(temp_infopath, "w") {|f| f.print preedit_str }
 
     exec_cmd( %Q! #{@editor} "#{temp_infopath}" ! )
     
-    temp_str = File.read(temp_infopath)
-    open(temp_infopath, "w") {|f| f.print temp_str.toutf8 }
+    postedit_str = File.read(temp_infopath).toutf8
+    if preedit_str == postedit_str
+      $stderr.puts "nothing changed."
+      return
+    end
+
+    open(temp_infopath, "w") {|f| f.print postedit_str }
 
     FileUtils.cp(temp_infopath, "000.yaml") if $DEBUG
 
